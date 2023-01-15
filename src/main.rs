@@ -1,11 +1,13 @@
 use std::{
     io::{self, BufRead, BufReader, Read, Write},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
-    time::Instant,
 };
 
 use clap::{Parser, Subcommand};
-use eframe::egui::*;
+use eframe::{
+    egui::*,
+    epaint::{Vertex, WHITE_UV},
+};
 
 fn main() {
     let app = App::parse();
@@ -69,7 +71,17 @@ fn run_command(command: String, args: Vec<String>) {
     eframe::run_native(
         &window_title,
         Default::default(),
-        Box::new(|_| Box::new(server)),
+        Box::new(|cc| {
+            cc.egui_ctx.tex_manager().write().alloc(
+                "white".into(),
+                ImageData::Color(ColorImage {
+                    size: [1, 1],
+                    pixels: vec![Color32::WHITE],
+                }),
+                TextureOptions::default(),
+            );
+            Box::new(server)
+        }),
     );
 }
 
@@ -82,7 +94,6 @@ struct Server {
     color: Color32,
     font_size: f32,
     anchor: Align2,
-    last_instant: Instant,
 }
 
 impl Server {
@@ -94,7 +105,6 @@ impl Server {
             color: Color32::WHITE,
             font_size: 16.0,
             anchor: Align2::LEFT_TOP,
-            last_instant: Instant::now(),
         }
     }
     fn handle_io<T>(
@@ -146,10 +156,7 @@ impl eframe::App for Server {
                     }
                 }
                 // ΔT
-                let now = Instant::now();
-                let dt = now - self.last_instant;
-                self.last_instant = now;
-                input_lines.push(format!("dt {}", dt.as_secs_f32()));
+                input_lines.push(format!("dt {}", ui.input().stable_dt));
                 // End
                 input_lines.push("end_input".into());
 
@@ -263,6 +270,25 @@ impl eframe::App for Server {
                                 ("anchor", ["center"]) => server.anchor = Align2::CENTER_CENTER,
                                 ("anchor", _) => {
                                     eprintln!("Invalid anchor: {args}");
+                                }
+                                ("polygon", points) => {
+                                    let mut vertices = Vec::new();
+                                    for point in points.chunks_exact(2) {
+                                        let [x, y] = parse_floats([&point[0], &point[1]], 0.0);
+                                        vertices.push(Vertex {
+                                            pos: pos2(x, y),
+                                            uv: WHITE_UV,
+                                            color: server.color,
+                                        });
+                                    }
+                                    let mut indices: Vec<u32> =
+                                        (0..vertices.len() as u32).collect();
+                                    indices.push(0);
+                                    ui.painter().add(Mesh {
+                                        vertices,
+                                        indices,
+                                        texture_id: TextureId::Managed(1),
+                                    });
                                 }
                                 ("end_frame", _) => break,
                                 _ => {

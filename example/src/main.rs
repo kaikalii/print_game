@@ -69,6 +69,10 @@ pub fn main() {
             window_width.min(window_height) / 2.0
         );
 
+        // Triangle
+        println!("color lightgreen");
+        println!("polygon 0 0 100 50 0 100");
+
         // Some text
         println!("color orange");
         println!("font_size 50");
