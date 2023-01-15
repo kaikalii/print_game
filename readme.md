@@ -23,12 +23,12 @@ They have to be run as sub-processes of the print_game frontend.
 
 To run the Rust example:
 ```
-cargo r run cargo r -- -p example
+cargo r cargo r -- -p example
 ```
 
 To run the Python example
 ```
-cargo r run python example.py
+cargo r python example.py
 ```
 
 # Writing a Backend

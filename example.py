@@ -4,7 +4,7 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 # Init
-print("title Pyton Example")
+print("title Python Example")
 print("end_init")
 
 mouse_x = 0

@@ -1,42 +1,60 @@
 use std::{
     io::{self, BufRead, BufReader, Read, Write},
-    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
+    process::{exit, Child, ChildStdin, ChildStdout, Command, Stdio},
+    sync::Arc,
 };
 
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use eframe::{
     egui::*,
-    epaint::{Vertex, WHITE_UV},
+    epaint::{mutex::Mutex, Vertex, WHITE_UV},
 };
+use once_cell::sync::Lazy;
+
+static RUNNING_CHILD: Lazy<Mutex<Option<Arc<Mutex<Child>>>>> = Lazy::new(|| Mutex::new(None));
 
 fn main() {
+    let _ = ctrlc::set_handler(|| {
+        if let Some(child) = RUNNING_CHILD.lock().take() {
+            let _ = child.lock().kill();
+        }
+        exit(0);
+    });
     let app = App::parse();
-    match app.sub {
-        Some(Sub::Run { command, args }) => run_command(command, args),
-        None => run_terminal(),
-    };
+    run_command(app.command, app.args);
 }
 
 #[derive(Parser)]
+#[command(author, version, about = "print_game: a game engine for any language")]
 struct App {
-    #[command(subcommand)]
-    sub: Option<Sub>,
-}
-
-#[derive(Clone, Subcommand)]
-enum Sub {
-    Run { command: String, args: Vec<String> },
+    #[arg(help = "the command to invoke the backend")]
+    command: String,
+    #[arg(help = "the arguments to pass to the backend command")]
+    args: Vec<String>,
 }
 
 fn run_command(command: String, args: Vec<String>) {
+    match run_command_impl(&command, args) {
+        Ok(()) => (),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            eprintln!("Command not found: {}", command)
+        }
+        Err(e) => {
+            eprintln!("Error running command: {}", e)
+        }
+    }
+}
+
+fn run_command_impl(command: &str, args: Vec<String>) -> io::Result<()> {
     let child = Command::new(command)
         .args(&args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
-        .spawn()
-        .unwrap();
-    let mut server = Server::new(child);
+        .spawn()?;
+    let child = Arc::new(Mutex::new(child));
+    *RUNNING_CHILD.lock() = Some(Arc::clone(&child));
+    let mut server = Server::new(Arc::clone(&child));
     let mut native_options = eframe::NativeOptions::default();
     let mut window_title = "My Game".to_owned();
     let closed = server.handle_io(
@@ -66,7 +84,7 @@ fn run_command(command: String, args: Vec<String>) {
         },
     );
     if closed.is_some() {
-        return;
+        return Ok(());
     }
     eframe::run_native(
         &window_title,
@@ -83,12 +101,11 @@ fn run_command(command: String, args: Vec<String>) {
             Box::new(server)
         }),
     );
+    Ok(())
 }
 
-fn run_terminal() {}
-
 struct Server {
-    child: Child,
+    child: Arc<Mutex<Child>>,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
     color: Color32,
@@ -99,10 +116,12 @@ struct Server {
 }
 
 impl Server {
-    fn new(mut child: Child) -> Self {
+    fn new(child: Arc<Mutex<Child>>) -> Self {
+        let stdin = child.lock().stdin.take().unwrap();
+        let stdout = BufReader::new(child.lock().stdout.take().unwrap());
         Server {
-            stdin: child.stdin.take().unwrap(),
-            stdout: BufReader::new(child.stdout.take().unwrap()),
+            stdin,
+            stdout,
             child,
             clear_color: Color32::BLACK,
             color: Color32::WHITE,
@@ -119,7 +138,7 @@ impl Server {
         if let Err(e) = f(self) {
             if e.kind() == io::ErrorKind::BrokenPipe {
                 println!("Child process ended");
-                let _ = self.child.kill();
+                let _ = self.child.lock().kill();
                 return Some(on_close());
             }
         }
@@ -185,128 +204,7 @@ impl eframe::App for Server {
                 );
 
                 // Handle frame lines
-                self.handle_io(
-                    || frame.close(),
-                    |server| {
-                        for line in server.stdout.by_ref().lines() {
-                            let line = line?;
-                            let (command, args) =
-                                line.split_once(char::is_whitespace).unwrap_or((&line, ""));
-                            let split_args: Vec<&str> = args.split_whitespace().collect();
-                            match (command, split_args.as_slice()) {
-                                ("clear", _) => server.clear_color = server.color,
-                                ("color", [r, g, b, a]) => {
-                                    let [r, g, b, a] = parse_floats([r, g, b, a], 1.0)
-                                        .map(|c| (c * 255.0).round() as u8);
-                                    server.color = Color32::from_rgba_premultiplied(r, g, b, a);
-                                }
-                                ("color", [r, g, b]) => {
-                                    let [r, g, b] = parse_floats([r, g, b], 1.0)
-                                        .map(|c| (c * 255.0).round() as u8);
-                                    server.color = Color32::from_rgba_premultiplied(r, g, b, 255);
-                                }
-                                ("color", _) => {
-                                    if let Ok(color) = csscolorparser::parse(args) {
-                                        let (r, g, b, a) = color.to_linear_rgba_u8();
-                                        server.color = Color32::from_rgba_premultiplied(r, g, b, a);
-                                    } else {
-                                        eprintln!("Invalid color: {}", args);
-                                    }
-                                }
-                                ("rectangle", [x, y, width, height]) => {
-                                    let [x, y, width, height] =
-                                        parse_floats([x, y, width, height], 0.0);
-                                    let rect = Rect::from_min_size(pos2(x, y), vec2(width, height));
-                                    let rect = server.anchor.anchor_rect(rect);
-                                    ui.painter().rect_filled(
-                                        rect,
-                                        Rounding::default(),
-                                        server.color,
-                                    );
-                                }
-                                ("circle", [x, y, radius]) => {
-                                    let [x, y, radius] = parse_floats([x, y, radius], 0.0);
-                                    let rect = Rect::from_center_size(
-                                        pos2(x + radius, y + radius),
-                                        Vec2::splat(radius * 2.0),
-                                    );
-                                    let rect = server.anchor.anchor_rect(rect);
-                                    ui.painter()
-                                        .circle_filled(rect.center(), radius, server.color);
-                                }
-                                ("font_size", [size]) => {
-                                    server.font_size = size.parse().unwrap_or(16.0);
-                                }
-                                ("text", [x, y, ..]) => {
-                                    let text =
-                                        args.splitn(3, char::is_whitespace).nth(2).unwrap_or("");
-                                    let [x, y] = parse_floats([x, y], 0.0);
-                                    let font_id = FontId {
-                                        size: server.font_size,
-                                        family: FontFamily::Proportional,
-                                    };
-                                    ui.painter().text(
-                                        pos2(x, y),
-                                        server.anchor,
-                                        text,
-                                        font_id,
-                                        server.color,
-                                    );
-                                }
-                                ("anchor", [h, v]) => {
-                                    let h = match *h {
-                                        "left" => Align::LEFT,
-                                        "center" => Align::Center,
-                                        "right" => Align::RIGHT,
-                                        _ => {
-                                            eprintln!("Invalid anchor: {v}");
-                                            server.anchor[0]
-                                        }
-                                    };
-                                    let v = match *v {
-                                        "top" => Align::TOP,
-                                        "center" => Align::Center,
-                                        "bottom" => Align::BOTTOM,
-                                        _ => {
-                                            eprintln!("Invalid anchor: {v}");
-                                            server.anchor[1]
-                                        }
-                                    };
-                                    server.anchor = Align2([h, v]);
-                                }
-                                ("anchor", ["center"]) => server.anchor = Align2::CENTER_CENTER,
-                                ("anchor", _) => {
-                                    eprintln!("Invalid anchor: {args}");
-                                }
-                                ("polygon", points) => {
-                                    let mut vertices = Vec::new();
-                                    for point in points.chunks_exact(2) {
-                                        let [x, y] = parse_floats([&point[0], &point[1]], 0.0);
-                                        vertices.push(Vertex {
-                                            pos: pos2(x, y),
-                                            uv: WHITE_UV,
-                                            color: server.color,
-                                        });
-                                    }
-                                    let mut indices: Vec<u32> =
-                                        (0..vertices.len() as u32).collect();
-                                    indices.push(0);
-                                    ui.painter().add(Mesh {
-                                        vertices,
-                                        indices,
-                                        texture_id: TextureId::Managed(1),
-                                    });
-                                }
-                                ("show_cursor", [show]) => server.show_cursor = *show != "false",
-                                ("end_frame", _) => break,
-                                _ => {
-                                    eprintln!("Invalid frame command: {command} {args}");
-                                }
-                            }
-                        }
-                        Ok(())
-                    },
-                );
+                self.handle_io(|| frame.close(), |server| server.handle_frame_lines(ui));
             })
             .response;
         resp.on_hover_cursor(if self.show_cursor {
@@ -317,8 +215,121 @@ impl eframe::App for Server {
         ctx.request_repaint();
     }
     fn on_close_event(&mut self) -> bool {
-        _ = self.child.kill();
+        _ = self.child.lock().kill();
         true
+    }
+}
+
+impl Server {
+    fn handle_frame_lines(&mut self, ui: &mut Ui) -> io::Result<()> {
+        for line in self.stdout.by_ref().lines() {
+            let line = line?;
+            if let Some(line) = line.strip_prefix('/') {
+                println!("{line}");
+                continue;
+            }
+            let (command, args) = line.split_once(char::is_whitespace).unwrap_or((&line, ""));
+            let split_args: Vec<&str> = args.split_whitespace().collect();
+            match (command, split_args.as_slice()) {
+                ("clear", _) => self.clear_color = self.color,
+                ("color", [r, g, b, a]) => {
+                    let [r, g, b, a] =
+                        parse_floats([r, g, b, a], 1.0).map(|c| (c * 255.0).round() as u8);
+                    self.color = Color32::from_rgba_premultiplied(r, g, b, a);
+                }
+                ("color", [r, g, b]) => {
+                    let [r, g, b] = parse_floats([r, g, b], 1.0).map(|c| (c * 255.0).round() as u8);
+                    self.color = Color32::from_rgba_premultiplied(r, g, b, 255);
+                }
+                ("color", _) => {
+                    if let Ok(color) = csscolorparser::parse(args) {
+                        let (r, g, b, a) = color.to_linear_rgba_u8();
+                        self.color = Color32::from_rgba_premultiplied(r, g, b, a);
+                    } else {
+                        eprintln!("Invalid color: {}", args);
+                    }
+                }
+                ("rectangle", [x, y, width, height]) => {
+                    let [x, y, width, height] = parse_floats([x, y, width, height], 0.0);
+                    let rect = Rect::from_min_size(pos2(x, y), vec2(width, height));
+                    let rect = self.anchor.anchor_rect(rect);
+                    ui.painter()
+                        .rect_filled(rect, Rounding::default(), self.color);
+                }
+                ("circle", [x, y, radius]) => {
+                    let [x, y, radius] = parse_floats([x, y, radius], 0.0);
+                    let rect = Rect::from_center_size(
+                        pos2(x + radius, y + radius),
+                        Vec2::splat(radius * 2.0),
+                    );
+                    let rect = self.anchor.anchor_rect(rect);
+                    ui.painter()
+                        .circle_filled(rect.center(), radius, self.color);
+                }
+                ("font_size", [size]) => {
+                    self.font_size = size.parse().unwrap_or(16.0);
+                }
+                ("text", [x, y, ..]) => {
+                    let text = args.splitn(3, char::is_whitespace).nth(2).unwrap_or("");
+                    let [x, y] = parse_floats([x, y], 0.0);
+                    let font_id = FontId {
+                        size: self.font_size,
+                        family: FontFamily::Proportional,
+                    };
+                    ui.painter()
+                        .text(pos2(x, y), self.anchor, text, font_id, self.color);
+                }
+                ("anchor", [h, v]) => {
+                    let h = match *h {
+                        "left" => Align::LEFT,
+                        "center" => Align::Center,
+                        "right" => Align::RIGHT,
+                        _ => {
+                            eprintln!("Invalid anchor: {v}");
+                            self.anchor[0]
+                        }
+                    };
+                    let v = match *v {
+                        "top" => Align::TOP,
+                        "center" => Align::Center,
+                        "bottom" => Align::BOTTOM,
+                        _ => {
+                            eprintln!("Invalid anchor: {v}");
+                            self.anchor[1]
+                        }
+                    };
+                    self.anchor = Align2([h, v]);
+                }
+                ("anchor", ["center"]) => self.anchor = Align2::CENTER_CENTER,
+                ("anchor", _) => {
+                    eprintln!("Invalid anchor: {args}");
+                }
+                ("polygon", points) => {
+                    let mut vertices = Vec::new();
+                    for point in points.chunks_exact(2) {
+                        let [x, y] = parse_floats([&point[0], &point[1]], 0.0);
+                        vertices.push(Vertex {
+                            pos: pos2(x, y),
+                            uv: WHITE_UV,
+                            color: self.color,
+                        });
+                    }
+                    let mut indices: Vec<u32> = (0..vertices.len() as u32).collect();
+                    indices.push(0);
+                    ui.painter().add(Mesh {
+                        vertices,
+                        indices,
+                        texture_id: TextureId::Managed(1),
+                    });
+                }
+                ("show_cursor", [show]) => self.show_cursor = *show != "false",
+                ("end_frame", _) => break,
+                _ => {
+                    eprintln!("Invalid frame command: {command} {args}");
+                }
+            }
+        }
+        Ok(())
     }
 }
 
