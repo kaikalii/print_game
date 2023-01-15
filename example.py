@@ -5,6 +5,8 @@ def eprint(*args, **kwargs):
 
 # Init
 print("title Python Example")
+print("window_size 800 600")
+print("vsync true")
 print("end_init")
 
 mouse_x = 0.0

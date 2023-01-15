@@ -76,6 +76,7 @@ fn run_command_impl(command: &str, args: Vec<String>) -> io::Result<()> {
                             _ => eprintln!("Invalid window size: {} {}", width, height),
                         }
                     }
+                    ("vsync", &[on]) => native_options.vsync = on == "true",
                     ("end_init", _) => break,
                     _ => {
                         eprintln!("Invalid init command: {command} {args}");
