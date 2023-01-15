@@ -41,10 +41,11 @@ fn run_command(command: String, args: Vec<String>) {
         |server| {
             for line in server.stdout.by_ref().lines() {
                 let line = line?;
-                let command: Vec<&str> = line.split_whitespace().collect();
-                match command.as_slice() {
-                    ["title", title] => window_title = (*title).into(),
-                    ["window_size", width, height] => {
+                let (command, args) = line.split_once(' ').unwrap_or((&line, ""));
+                let split_args: Vec<&str> = args.split_whitespace().collect();
+                match (command, split_args.as_slice()) {
+                    ("title", _) => window_title = args.into(),
+                    ("window_size", [width, height]) => {
                         match (width.parse::<f32>(), height.parse::<f32>()) {
                             (Ok(width), Ok(height)) => {
                                 native_options.initial_window_size = Some(vec2(width, height));
@@ -52,9 +53,9 @@ fn run_command(command: String, args: Vec<String>) {
                             _ => eprintln!("Invalid window size: {} {}", width, height),
                         }
                     }
-                    ["end_init"] => break,
-                    command => {
-                        eprintln!("Invalid init command: {:?}", command);
+                    ("end_init", _) => break,
+                    _ => {
+                        eprintln!("Invalid init command: {command} {args}");
                     }
                 }
             }
@@ -77,7 +78,6 @@ struct Server {
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
-    mouse_pos: Pos2,
 }
 
 impl Server {
@@ -86,7 +86,6 @@ impl Server {
             stdin: child.stdin.take().unwrap(),
             stdout: BufReader::new(child.stdout.take().unwrap()),
             child,
-            mouse_pos: pos2(0.0, 0.0),
         }
     }
     fn handle_io<T>(
@@ -110,22 +109,34 @@ impl eframe::App for Server {
         CentralPanel::default()
             .frame(Frame::none())
             .show(ctx, |ui| {
-                // Update mouse pos
-                if let Some(pos) = ui.input().pointer.hover_pos() {
-                    self.mouse_pos = pos;
-                }
-
                 // Gather input lines
                 let mut input_lines = Vec::new();
+                // Window size
                 input_lines.push(format!(
                     "window_size {} {}",
                     ui.available_width(),
                     ui.available_height()
                 ));
-                input_lines.push(format!(
-                    "mouse_pos {} {}",
-                    self.mouse_pos.x, self.mouse_pos.y
-                ));
+                // Events
+                for event in &ui.input().events {
+                    match event {
+                        Event::Key {
+                            key,
+                            pressed,
+                            modifiers,
+                        } => {
+                            input_lines.push(format!(
+                                "key {key:?} {pressed} {} {} {}",
+                                modifiers.ctrl, modifiers.shift, modifiers.alt
+                            ));
+                        }
+                        Event::PointerMoved(pos) => {
+                            input_lines.push(format!("mouse_moved {} {}", pos.x, pos.y));
+                        }
+                        _ => {}
+                    }
+                }
+                // End
                 input_lines.push("end_input".into());
 
                 // Send input lines
@@ -146,11 +157,12 @@ impl eframe::App for Server {
                     |server| {
                         for line in server.stdout.by_ref().lines() {
                             let line = line?;
-                            let command = line.split_whitespace().collect::<Vec<_>>();
-                            match command.as_slice() {
-                                ["end_frame"] => break,
-                                command => {
-                                    eprintln!("Invalid frame command: {:?}", command);
+                            let (command, args) = line.split_once(' ').unwrap_or((&line, ""));
+                            let split_args: Vec<&str> = args.split_whitespace().collect();
+                            match (command, split_args.as_slice()) {
+                                ("end_frame", _) => break,
+                                _ => {
+                                    eprintln!("Invalid frame command: {command} {args}");
                                 }
                             }
                         }
