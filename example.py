@@ -1,4 +1,4 @@
-import sys
+import sys, time
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -16,9 +16,13 @@ while True:
     while input_line != "end_input":
         input_line = input()
         com = input_line.split(" ")
-        if com[0] == "mouse_moved":
-            mouse_x = float(com[1])
-            mouse_y = float(com[2])
+        args = com[1:]
+        com = com[0]
+        if com == "mouse_moved":
+            mouse_x = float(args[0])
+            mouse_y = float(args[1])
+        elif com == "dt":
+            dt = float(args[0])
 
     # Draw frame
     print("color white")
@@ -27,5 +31,9 @@ while True:
     print("anchor center")
     print("color red")
     print("rectangle {} {} 100 100".format(mouse_x, mouse_y))
+
+    print("color black")
+    print("anchor left top")
+    print("text 1 1 {} fps".format(int(1.0 / dt)))
     
     print("end_frame")

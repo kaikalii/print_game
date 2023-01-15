@@ -3,6 +3,7 @@ use std::{
     io::{self, BufRead, BufReader, Read, Write},
     process::{exit, Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::Arc,
+    time::Instant,
 };
 
 use clap::Parser;
@@ -115,6 +116,7 @@ struct Server {
     anchor: Align2,
     show_cursor: bool,
     keys_down: HashSet<Key>,
+    last_instant: Instant,
 }
 
 impl Server {
@@ -131,6 +133,7 @@ impl Server {
             anchor: Align2::LEFT_TOP,
             show_cursor: true,
             keys_down: HashSet::new(),
+            last_instant: Instant::now(),
         }
     }
     fn handle_io<T>(
@@ -159,6 +162,10 @@ impl eframe::App for Server {
         )
     }
     fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+        let now = Instant::now();
+        let dt = (now - self.last_instant).as_secs_f32();
+        self.last_instant = now;
+
         let resp = CentralPanel::default()
             .frame(Frame::none())
             .show(ctx, |ui| {
@@ -198,7 +205,7 @@ impl eframe::App for Server {
                     }
                 }
                 // ΔT
-                input_lines.push(format!("dt {}", ui.input().stable_dt));
+                input_lines.push(format!("dt {dt}"));
                 // End
                 input_lines.push("end_input".into());
 
