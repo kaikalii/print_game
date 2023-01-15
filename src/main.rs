@@ -38,15 +38,53 @@ struct App {
     args: Vec<String>,
 }
 
-fn run_command(command: String, args: Vec<String>) {
-    match run_command_impl(&command, args) {
-        Ok(()) => (),
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            eprintln!("Command not found: {}", command)
+struct Server {
+    child: Arc<Mutex<Child>>,
+    stdin: ChildStdin,
+    stdout: BufReader<ChildStdout>,
+    color: Color32,
+    clear_color: Color32,
+    font_size: f32,
+    anchor: Align2,
+    show_cursor: bool,
+    keys_down: HashSet<Key>,
+    last_instant: Instant,
+    last_window_size: Vec2,
+    textures: HashMap<String, Option<TextureHandle>>,
+}
+
+impl Server {
+    fn new(child: Arc<Mutex<Child>>) -> Self {
+        let stdin = child.lock().stdin.take().unwrap();
+        let stdout = BufReader::new(child.lock().stdout.take().unwrap());
+        Server {
+            stdin,
+            stdout,
+            child,
+            clear_color: Color32::BLACK,
+            color: Color32::WHITE,
+            font_size: 16.0,
+            anchor: Align2::LEFT_TOP,
+            show_cursor: true,
+            keys_down: HashSet::default(),
+            last_instant: Instant::now(),
+            last_window_size: Vec2::ZERO,
+            textures: HashMap::default(),
         }
-        Err(e) => {
-            eprintln!("Error running command: {}", e)
+    }
+    fn handle_io<T>(
+        &mut self,
+        on_close: impl FnOnce() -> T,
+        f: impl FnOnce(&mut Self) -> io::Result<()>,
+    ) -> Option<T> {
+        if let Err(e) = f(self) {
+            if e.kind() == io::ErrorKind::BrokenPipe {
+                println!("Child process ended");
+                let _ = self.child.lock().kill();
+                return Some(on_close());
+            }
         }
+        None
     }
 }
 
@@ -60,6 +98,18 @@ fn parse_line(line: &str) -> Option<(&str, &str, Vec<&str>)> {
             println!("{line}");
         }
         None
+    }
+}
+
+fn run_command(command: String, args: Vec<String>) {
+    match run_command_impl(&command, args) {
+        Ok(()) => (),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            eprintln!("Command not found: {}", command)
+        }
+        Err(e) => {
+            eprintln!("Error running command: {}", e)
+        }
     }
 }
 
@@ -126,56 +176,6 @@ fn run_command_impl(command: &str, args: Vec<String>) -> io::Result<()> {
         }),
     );
     Ok(())
-}
-
-struct Server {
-    child: Arc<Mutex<Child>>,
-    stdin: ChildStdin,
-    stdout: BufReader<ChildStdout>,
-    color: Color32,
-    clear_color: Color32,
-    font_size: f32,
-    anchor: Align2,
-    show_cursor: bool,
-    keys_down: HashSet<Key>,
-    last_instant: Instant,
-    last_window_size: Vec2,
-    textures: HashMap<String, Option<TextureHandle>>,
-}
-
-impl Server {
-    fn new(child: Arc<Mutex<Child>>) -> Self {
-        let stdin = child.lock().stdin.take().unwrap();
-        let stdout = BufReader::new(child.lock().stdout.take().unwrap());
-        Server {
-            stdin,
-            stdout,
-            child,
-            clear_color: Color32::BLACK,
-            color: Color32::WHITE,
-            font_size: 16.0,
-            anchor: Align2::LEFT_TOP,
-            show_cursor: true,
-            keys_down: HashSet::default(),
-            last_instant: Instant::now(),
-            last_window_size: Vec2::ZERO,
-            textures: HashMap::default(),
-        }
-    }
-    fn handle_io<T>(
-        &mut self,
-        on_close: impl FnOnce() -> T,
-        f: impl FnOnce(&mut Self) -> io::Result<()>,
-    ) -> Option<T> {
-        if let Err(e) = f(self) {
-            if e.kind() == io::ErrorKind::BrokenPipe {
-                println!("Child process ended");
-                let _ = self.child.lock().kill();
-                return Some(on_close());
-            }
-        }
-        None
-    }
 }
 
 impl eframe::App for Server {
