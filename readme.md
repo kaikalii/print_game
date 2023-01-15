@@ -60,13 +60,15 @@ Frame commands can be found [below](#frame-commands).
 
 ### Input Events
 
-- `window_size` `width:f32` `height:f32`
-- `mouse_pos` `x:f32` `y:f32`
+- `window_resized` `width:f32` `height:f32`
 - `key` `key:string` `pressed:bool` `repeat:bool` `ctrl:bool` `shift:bool` `alt:bool`
 - `mouse_moved` `x:f32` `y:f32`
 - `end_input`
 
 ### Frame commands
+
+Frame commands are printed to stdout and are executed in order.
+Commands that start with `get_*` have a response line that must be retrieved from stdin.
 
 - `clear`
   - set the clear color to the current color
@@ -96,6 +98,14 @@ Frame commands can be found [below](#frame-commands).
   - set the current font size
 - `text` `x:f32` `y:f32` text:string
   - draw `text`
+- `image` `path:string` `x:f32` `y:f32` `width:f32` `height:f32` `uv_x:f32` `uv_y:f32` `uv_width:f32` `uv_height:f32`
+  - draw an image
+  - values after `path` are optional
+  - ex: `image assets/my_texture.png 100 100 200 200`
+- `get_texture_size` `path:string`
+  - get the size of an image
+  - response: `width:u32` `height:u32`
+  - ex: `texture_size assets/my_texture.png`
 - `show_cursor` show:bool
   - show or hide the mouse cursor
 - `end_frame`

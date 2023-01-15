@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     io::{self, BufRead, BufReader, Read, Write},
     process::{exit, Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::Arc,
@@ -9,7 +8,11 @@ use std::{
 use clap::Parser;
 use eframe::{
     egui::*,
-    epaint::{mutex::Mutex, Vertex, WHITE_UV},
+    epaint::{
+        ahash::{HashMap, HashSet},
+        mutex::Mutex,
+        Vertex, WHITE_UV,
+    },
 };
 use once_cell::sync::Lazy;
 
@@ -118,6 +121,8 @@ struct Server {
     show_cursor: bool,
     keys_down: HashSet<Key>,
     last_instant: Instant,
+    last_window_size: Vec2,
+    textures: HashMap<String, Option<TextureHandle>>,
 }
 
 impl Server {
@@ -133,8 +138,10 @@ impl Server {
             font_size: 16.0,
             anchor: Align2::LEFT_TOP,
             show_cursor: true,
-            keys_down: HashSet::new(),
+            keys_down: HashSet::default(),
             last_instant: Instant::now(),
+            last_window_size: Vec2::ZERO,
+            textures: HashMap::default(),
         }
     }
     fn handle_io<T>(
@@ -172,12 +179,15 @@ impl eframe::App for Server {
             .show(ctx, |ui| {
                 // Gather input lines
                 let mut input_lines = Vec::new();
-                // Window size
-                input_lines.push(format!(
-                    "window_size {} {}",
-                    ui.available_width(),
-                    ui.available_height()
-                ));
+                // Window resized
+                if self.last_window_size != vec2(ui.available_width(), ui.available_height()) {
+                    self.last_window_size = vec2(ui.available_width(), ui.available_height());
+                    input_lines.push(format!(
+                        "window_resized {} {}",
+                        ui.available_width(),
+                        ui.available_height()
+                    ));
+                }
                 // Events
                 for event in &ui.input().events {
                     match event {
@@ -241,13 +251,18 @@ impl eframe::App for Server {
 
 impl Server {
     fn handle_frame_lines(&mut self, ui: &mut Ui) -> io::Result<()> {
-        for line in self.stdout.by_ref().lines() {
-            let line = line?;
+        let mut line = String::new();
+        loop {
+            line.clear();
+            self.stdout.read_line(&mut line)?;
             if let Some(line) = line.strip_prefix('/') {
                 println!("{line}");
                 continue;
             }
             let (command, args) = line.split_once(char::is_whitespace).unwrap_or((&line, ""));
+            if command.is_empty() {
+                continue;
+            }
             let split_args: Vec<&str> = args.split_whitespace().collect();
             match (command, split_args.as_slice()) {
                 ("clear", _) => self.clear_color = self.color,
@@ -342,6 +357,32 @@ impl Server {
                     });
                 }
                 ("show_cursor", [show]) => self.show_cursor = *show != "false",
+                ("image", [path, rest @ ..]) => {
+                    let Some(texture) = self.texture(path, ui.ctx()) else {
+                        continue;
+                    };
+                    let size = texture.size_vec2();
+                    let mut values = [0.0, 0.0, size.x, size.y, 0.0, 0.0, 1.0, 1.0];
+                    for (val, s) in values.iter_mut().zip(rest) {
+                        if let Ok(v) = s.parse() {
+                            *val = v;
+                        }
+                    }
+                    let [x, y, width, height, uv_x, uv_y, uv_width, uv_height] = values;
+                    let rect = Rect::from_min_size(pos2(x, y), vec2(width, height));
+                    let rect = self.anchor.anchor_rect(rect);
+                    let uv_min = pos2(uv_x, uv_y);
+                    let uv_size = vec2(uv_width, uv_height);
+                    let uv = Rect::from_min_max(uv_min, uv_min + uv_size);
+                    ui.painter().image(texture.id(), rect, uv, Color32::WHITE);
+                }
+                ("get_texture_size", [path]) => {
+                    let Some(texture) = self.texture(path, ui.ctx()) else {
+                        continue;
+                    };
+                    let line = format!("{} {}\n", texture.size()[0], texture.size()[1]);
+                    self.stdin.write_all(line.as_bytes())?;
+                }
                 ("end_frame", _) => break,
                 _ => {
                     eprintln!("Invalid frame command: {command} {args}");
@@ -349,6 +390,31 @@ impl Server {
             }
         }
         Ok(())
+    }
+    fn texture(&mut self, path: &str, ctx: &Context) -> Option<TextureHandle> {
+        if let Some(handle) = self.textures.get(path) {
+            return handle.clone();
+        }
+        let image = match image::open(path) {
+            Ok(image) => image,
+            Err(e) => {
+                println!("Error loading texture {path:?}: {e}");
+                self.textures.insert(path.into(), None);
+                return None;
+            }
+        };
+        let image = image.into_rgba8();
+        let image = ColorImage {
+            size: [image.width() as usize, image.height() as usize],
+            pixels: image
+                .pixels()
+                .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+                .collect(),
+        };
+        let handle = ctx.load_texture(path, image, TextureOptions::default());
+        println!("loaded texture: {path}");
+        self.textures.insert(path.into(), Some(handle.clone()));
+        Some(handle)
     }
 }
 

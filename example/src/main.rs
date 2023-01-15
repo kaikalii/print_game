@@ -23,7 +23,7 @@ pub fn main() {
             let line = line.unwrap();
             let command: Vec<&str> = line.split_whitespace().collect();
             match command.as_slice() {
-                ["window_size", x, y] => {
+                ["window_resized", x, y] => {
                     window_width = x.parse().unwrap();
                     window_height = y.parse().unwrap();
                 }
