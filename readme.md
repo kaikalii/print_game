@@ -3,8 +3,14 @@
 The examples don't do much on their own.
 They have to be run as sub-processes of the print_game frontend.
 
+To run the Rust example:
 ```
 cargo r run cargo r -- -p example
+```
+
+To run the python example
+```
+cargo r run python example.py
 ```
 
 # Init Commands
