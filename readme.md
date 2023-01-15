@@ -6,12 +6,9 @@ It allows you to write games in any programming language, even those without FFI
 Drawing and other commands are executed by printing lines to stdout.
 Input events are read as lines from stdin.
 
-# Requirements
-
-- Rust
-
 # Installation
 
+To install, you can either download from github releases or build from source if you have Rust installed:
 ```
 cargo install print_game
 ```
@@ -23,12 +20,12 @@ They have to be run as sub-processes of the print_game frontend.
 
 To run the Rust example:
 ```
-cargo r cargo r -- -p example
+print_game cargo r -- -p example
 ```
 
 To run the Python example
 ```
-cargo r python example.py
+print_game python example.py
 ```
 
 # Writing a Backend
@@ -65,7 +62,7 @@ Frame commands can be found [below](#frame-commands).
 
 - `window_size` `width:f32` `height:f32`
 - `mouse_pos` `x:f32` `y:f32`
-- `key` `key:string` `pressed:bool` `ctrl:bool` `shift:bool` `alt:bool`
+- `key` `key:string` `pressed:bool` `repeat:bool` `ctrl:bool` `shift:bool` `alt:bool`
 - `mouse_moved` `x:f32` `y:f32`
 - `end_input`
 

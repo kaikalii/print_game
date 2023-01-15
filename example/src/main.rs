@@ -31,10 +31,11 @@ pub fn main() {
                     mouse_x = x.parse().unwrap();
                     mouse_y = y.parse().unwrap();
                 }
-                &["key", key, pressed, ..] => {
+                &["key", key, pressed, repeat, ..] => {
                     if pressed.parse().unwrap() {
                         keys.insert(key.to_string());
-                        if key == "Escape" {
+                        let repeat: bool = repeat.parse().unwrap();
+                        if !repeat && key == "Escape" {
                             show_cursor = !show_cursor;
                         }
                     } else {

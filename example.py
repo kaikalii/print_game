@@ -7,8 +7,8 @@ def eprint(*args, **kwargs):
 print("title Python Example")
 print("end_init")
 
-mouse_x = 0
-mouse_y = 0
+mouse_x = 0.0
+mouse_y = 0.0
 
 while True:
     # Read input
@@ -17,8 +17,8 @@ while True:
         input_line = input()
         com = input_line.split(" ")
         if com[0] == "mouse_moved":
-            mouse_x = com[1]
-            mouse_y = com[2]
+            mouse_x = float(com[1])
+            mouse_y = float(com[2])
 
     # Draw frame
     print("color white")
@@ -27,4 +27,5 @@ while True:
     print("anchor center")
     print("color red")
     print("rectangle {} {} 100 100".format(mouse_x, mouse_y))
+    
     print("end_frame")

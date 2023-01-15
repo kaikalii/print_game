@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     io::{self, BufRead, BufReader, Read, Write},
     process::{exit, Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::Arc,
@@ -113,6 +114,7 @@ struct Server {
     font_size: f32,
     anchor: Align2,
     show_cursor: bool,
+    keys_down: HashSet<Key>,
 }
 
 impl Server {
@@ -128,6 +130,7 @@ impl Server {
             font_size: 16.0,
             anchor: Align2::LEFT_TOP,
             show_cursor: true,
+            keys_down: HashSet::new(),
         }
     }
     fn handle_io<T>(
@@ -176,9 +179,17 @@ impl eframe::App for Server {
                             modifiers,
                         } => {
                             input_lines.push(format!(
-                                "key {key:?} {pressed} {} {} {}",
-                                modifiers.ctrl, modifiers.shift, modifiers.alt
+                                "key {key:?} {pressed} {} {} {} {}",
+                                self.keys_down.contains(key),
+                                modifiers.ctrl,
+                                modifiers.shift,
+                                modifiers.alt
                             ));
+                            if *pressed {
+                                self.keys_down.insert(*key);
+                            } else {
+                                self.keys_down.remove(key);
+                            }
                         }
                         Event::PointerMoved(pos) => {
                             input_lines.push(format!("mouse_moved {} {}", pos.x, pos.y));
