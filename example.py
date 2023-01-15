@@ -21,13 +21,9 @@ print("/end_init")
 
 while True:
     # Read input events
-    input_line = ""
-    while input_line != "end_input":
-        # Split the line into event and arguments
-        input_line = input()
-        split_line = input_line.split(" ")
-        event = split_line[0]
-        args = split_line[1:]
+    event = ""
+    while event != "end_input":
+        [event, *args] = input().split(" ")
         # Handle events
         if event == "mouse_moved":
             mouse_x = float(args[0])

@@ -56,12 +56,15 @@ fn parse_line(line: &str) -> Option<(&str, &str, Vec<&str>)> {
         let split_args: Vec<&str> = args.split_whitespace().collect();
         Some((command, args, split_args))
     } else {
-        println!("{line}");
+        if !line.trim().is_empty() {
+            println!("{line}");
+        }
         None
     }
 }
 
 fn run_command_impl(command: &str, args: Vec<String>) -> io::Result<()> {
+    // Start the child process
     let child = Command::new(command)
         .args(&args)
         .stdin(Stdio::piped())
@@ -71,6 +74,7 @@ fn run_command_impl(command: &str, args: Vec<String>) -> io::Result<()> {
     let child = Arc::new(Mutex::new(child));
     *RUNNING_CHILD.lock() = Some(Arc::clone(&child));
     let mut server = Server::new(Arc::clone(&child));
+    // Collect window options
     let mut native_options = eframe::NativeOptions::default();
     let mut window_title = "My Game".to_owned();
     let closed = server.handle_io(
@@ -101,9 +105,11 @@ fn run_command_impl(command: &str, args: Vec<String>) -> io::Result<()> {
             Ok(())
         },
     );
+    // Return if the child process has already exited
     if closed.is_some() {
         return Ok(());
     }
+    // Run the game
     eframe::run_native(
         &window_title,
         Default::default(),
