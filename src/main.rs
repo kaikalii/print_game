@@ -202,15 +202,23 @@ impl eframe::App for Server {
                                 ("rectangle", [x, y, width, height]) => {
                                     let [x, y, width, height] =
                                         parse_floats([x, y, width, height], 0.0);
+                                    let rect = Rect::from_min_size(pos2(x, y), vec2(width, height));
+                                    let rect = server.anchor.anchor_rect(rect);
                                     ui.painter().rect_filled(
-                                        Rect::from_min_size(pos2(x, y), vec2(width, height)),
+                                        rect,
                                         Rounding::default(),
                                         server.color,
                                     );
                                 }
                                 ("circle", [x, y, radius]) => {
                                     let [x, y, radius] = parse_floats([x, y, radius], 0.0);
-                                    ui.painter().circle_filled(pos2(x, y), radius, server.color);
+                                    let rect = Rect::from_center_size(
+                                        pos2(x + radius, y + radius),
+                                        Vec2::splat(radius * 2.0),
+                                    );
+                                    let rect = server.anchor.anchor_rect(rect);
+                                    ui.painter()
+                                        .circle_filled(rect.center(), radius, server.color);
                                 }
                                 ("font_size", [size]) => {
                                     server.font_size = size.parse().unwrap_or(16.0);
@@ -251,6 +259,10 @@ impl eframe::App for Server {
                                         }
                                     };
                                     server.anchor = Align2([h, v]);
+                                }
+                                ("anchor", ["center"]) => server.anchor = Align2::CENTER_CENTER,
+                                ("anchor", _) => {
+                                    eprintln!("Invalid anchor: {args}");
                                 }
                                 ("end_frame", _) => break,
                                 _ => {

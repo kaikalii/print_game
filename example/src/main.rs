@@ -50,6 +50,7 @@ pub fn main() {
         }
 
         // Write frame
+        println!("anchor center");
 
         // Clear screen
         println!("color #505050");
@@ -71,7 +72,6 @@ pub fn main() {
         // Some text
         println!("color orange");
         println!("font_size 50");
-        println!("anchor center center");
         println!(
             "text {} {} Hello, World!",
             window_width / 2.0,
@@ -80,7 +80,7 @@ pub fn main() {
 
         // Rectangle that follows the mouse
         println!("color red");
-        println!("rectangle {} {} 100 100", mouse_x - 50.0, mouse_y - 50.0);
+        println!("rectangle {mouse_x} {mouse_y} 100 100");
 
         // End frame
         println!("end_frame");
