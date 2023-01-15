@@ -21,6 +21,9 @@ while True:
             mouse_y = com[2]
 
     # Draw frame
+    print("color white")
+    print("clear")
+
     print("anchor center")
     print("color red")
     print("rectangle {} {} 100 100".format(mouse_x, mouse_y))
