@@ -18,12 +18,7 @@ cargo install print_game
 The examples don't do much on their own.
 They have to be run as sub-processes of the print_game frontend.
 
-To run the Rust example:
-```
-print_game cargo r -- -p example
-```
-
-To run the Python example
+To run the [Python example](example.py)
 ```
 print_game python example.py
 ```
@@ -54,9 +49,9 @@ Frame commands can be found [below](#frame-commands).
 
 ### Init Commands
 
-- `title` `title:string`
-- `window_size` `width:f32` `height:f32`
-- `end_init`
+- `/title` `title:string`
+- `/window_size` `width:f32` `height:f32`
+- `/end_init`
 
 ### Input Events
 
@@ -71,42 +66,42 @@ Frame commands can be found [below](#frame-commands).
 Frame commands are printed to stdout and are executed in order.
 Commands that start with `get_*` have a response line that must be retrieved from stdin.
 
-- `clear`
+- `/clear`
   - set the clear color to the current color
-- `color` `r:f32` `g:f32` `b:f32` `a:f32`
+- `/color` `r:f32` `g:f32` `b:f32` `a:f32`
   - set the current color
   - ex: `color 1 0 0.5 1`
-- `color` `color:string`
+- `/color` `color:string`
   - set the current color
   - most css color strings should be valid
   - ex: `color red`
   - ex: `color #ff0000`
   - ex: `color rgb(100%,0%,0%)`
-- `rectangle` `x:f32` `y:f32` `width:f32` `height:f32`
+- `/rectangle` `x:f32` `y:f32` `width:f32` `height:f32`
   - draw a rectangle
   - ex: `rectangle 40 120 80 80`
-- `circle` `x:f32` `y:f32` `radius:f32`
+- `/circle` `x:f32` `y:f32` `radius:f32`
   - draw a circle
   - ex: `circle 100 200 50`
-- `polygon` [`x:f32` `y:f32`]
+- `/polygon` [`x:f32` `y:f32`]
   - draw a polygon
   - ex: `polygon 100 100 200 100 200 200 100 200`
-- `anchor` `horizontal:string` `vertical:string`
+- `/anchor` `horizontal:string` `vertical:string`
   - set the current anchor point for text and shape drawing
   - valid horizontal values: `left`, `center`, `right`
   - valid vertical values: `top`, `center`, `bottom`
-- `font_size` `size:f32`
+- `/font_size` `size:f32`
   - set the current font size
-- `text` `x:f32` `y:f32` text:string
+- `/text` `x:f32` `y:f32` text:string
   - draw `text`
-- `image` `path:string` `x:f32` `y:f32` `width:f32` `height:f32` `uv_x:f32` `uv_y:f32` `uv_width:f32` `uv_height:f32`
+- `/image` `path:string` `x:f32` `y:f32` `width:f32` `height:f32` `uv_x:f32` `uv_y:f32` `uv_width:f32` `uv_height:f32`
   - draw an image
   - values after `path` are optional
   - ex: `image assets/my_texture.png 100 100 200 200`
-- `get_texture_size` `path:string`
+- `/get_texture_size` `path:string`
   - get the size of an image
   - response: `width:u32` `height:u32`
   - ex: `texture_size assets/my_texture.png`
-- `show_cursor` show:bool
+- `/show_cursor` show:bool
   - show or hide the mouse cursor
-- `end_frame`
+- `/end_frame`

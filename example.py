@@ -14,10 +14,10 @@ character_sprite = "assets/character_sprite.png"
 grass_sprite = "assets/grass.png"
 
 # Init
-print("title Python Example")
-print("window_size 800 600")
-print("vsync true")
-print("end_init")
+print("/title Python Example")
+print("/window_size 800 600")
+print("/vsync true")
+print("/end_init")
 
 while True:
     # Read input events
@@ -48,7 +48,7 @@ while True:
             button = args[0]
             pressed = args[1] == "true"
             if pressed and button == "Primary":
-                print("/click")
+                print("click")
 
     # Move character
     vel_x = float("D" in keys) - float("A" in keys)
@@ -63,30 +63,30 @@ while True:
     # Draw frame
 
     # Set clear color
-    print("color white")
-    print("clear")
+    print("/color white")
+    print("/clear")
 
     # Draw tiling grass
-    print("get_texture_size {}".format(grass_sprite))
+    print("/get_texture_size {}".format(grass_sprite))
     size = input().split(" ")
     size = [float(size[0]), float(size[1])]
-    print("anchor left top")
+    print("/anchor left top")
     for i in range(int(math.ceil(window_width / size[0]))):
         for j in range(int(math.ceil(window_height / size[1]))):
-            print("image {} {} {}".format(grass_sprite, i * size[0], j * size[1]))
+            print("/image {} {} {}".format(grass_sprite, i * size[0], j * size[1]))
 
     # Draw character
-    print("anchor center")
-    print("image {} {} {} 100 100".format(character_sprite, pos_x, pos_y))
+    print("/anchor center")
+    print("/image {} {} {} 100 100".format(character_sprite, pos_x, pos_y))
 
     # Draw mouse position
-    print("color red")
-    print("circle {} {} 20".format(mouse_x, mouse_y))
+    print("/color red")
+    print("/circle {} {} 20".format(mouse_x, mouse_y))
 
     # Draw FPS
-    print("color black")
-    print("anchor left top")
-    print("text 1 1 {} fps".format(int(1.0 / dt)))
+    print("/color black")
+    print("/anchor left top")
+    print("/text 1 1 {} fps".format(int(1.0 / dt)))
     
     # End frame
-    print("end_frame")
+    print("/end_frame")

@@ -50,6 +50,17 @@ fn run_command(command: String, args: Vec<String>) {
     }
 }
 
+fn parse_line(line: &str) -> Option<(&str, &str, Vec<&str>)> {
+    let (command, args) = line.split_once(char::is_whitespace).unwrap_or((line, ""));
+    if let Some(command) = command.strip_prefix('/') {
+        let split_args: Vec<&str> = args.split_whitespace().collect();
+        Some((command, args, split_args))
+    } else {
+        println!("{line}");
+        None
+    }
+}
+
 fn run_command_impl(command: &str, args: Vec<String>) -> io::Result<()> {
     let child = Command::new(command)
         .args(&args)
@@ -67,8 +78,9 @@ fn run_command_impl(command: &str, args: Vec<String>) -> io::Result<()> {
         |server| {
             for line in server.stdout.by_ref().lines() {
                 let line = line?;
-                let (command, args) = line.split_once(char::is_whitespace).unwrap_or((&line, ""));
-                let split_args: Vec<&str> = args.split_whitespace().collect();
+                let Some((command, args, split_args)) = parse_line(&line) else {
+                    continue;
+                };
                 match (command, split_args.as_slice()) {
                     ("title", _) => window_title = args.into(),
                     ("window_size", [width, height]) => {
@@ -267,15 +279,9 @@ impl Server {
             line.clear();
             self.stdout.read_line(&mut line)?;
             line = line.trim().into();
-            if let Some(line) = line.strip_prefix('/') {
-                println!("{line}");
+            let Some((command, args, split_args)) = parse_line(&line) else {
                 continue;
-            }
-            let (command, args) = line.split_once(char::is_whitespace).unwrap_or((&line, ""));
-            if command.is_empty() {
-                continue;
-            }
-            let split_args: Vec<&str> = args.split_whitespace().collect();
+            };
             match (command, split_args.as_slice()) {
                 ("clear", _) => self.clear_color = self.color,
                 ("color", [r, g, b, a]) => {
