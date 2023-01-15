@@ -1,3 +1,5 @@
+#![allow(unused_assignments, unused_variables)]
+
 use std::collections::BTreeSet;
 
 pub fn main() {
@@ -10,6 +12,7 @@ pub fn main() {
     let mut window_height = 0.0;
     let mut mouse_x = 0.0;
     let mut mouse_y = 0.0;
+    let mut dt = 1.0 / 60.0;
     let mut keys = BTreeSet::new();
 
     // Main game loop
@@ -34,6 +37,9 @@ pub fn main() {
                         keys.remove(*key);
                     }
                 }
+                ["dt", t] => {
+                    dt = t.parse().unwrap();
+                }
                 ["end_input"] => {
                     break;
                 }
@@ -44,8 +50,12 @@ pub fn main() {
         }
 
         // Write frame
+
+        // Clear screen
         println!("color #505050");
         println!("clear");
+
+        // Big circle
         if keys.contains("Space") {
             println!("color cyan");
         } else {
@@ -57,8 +67,22 @@ pub fn main() {
             window_height / 2.0,
             window_width.min(window_height) / 2.0
         );
+
+        // Some text
+        println!("color orange");
+        println!("font_size 50");
+        println!("anchor center center");
+        println!(
+            "text {} {} Hello, World!",
+            window_width / 2.0,
+            window_height / 4.0
+        );
+
+        // Rectangle that follows the mouse
         println!("color red");
         println!("rectangle {} {} 100 100", mouse_x - 50.0, mouse_y - 50.0);
+
+        // End frame
         println!("end_frame");
     }
 }

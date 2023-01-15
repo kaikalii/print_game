@@ -1,6 +1,7 @@
 use std::{
     io::{self, BufRead, BufReader, Read, Write},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
+    time::Instant,
 };
 
 use clap::{Parser, Subcommand};
@@ -41,7 +42,7 @@ fn run_command(command: String, args: Vec<String>) {
         |server| {
             for line in server.stdout.by_ref().lines() {
                 let line = line?;
-                let (command, args) = line.split_once(' ').unwrap_or((&line, ""));
+                let (command, args) = line.split_once(char::is_whitespace).unwrap_or((&line, ""));
                 let split_args: Vec<&str> = args.split_whitespace().collect();
                 match (command, split_args.as_slice()) {
                     ("title", _) => window_title = args.into(),
@@ -79,6 +80,9 @@ struct Server {
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
     color: Color32,
+    font_size: f32,
+    anchor: Align2,
+    last_instant: Instant,
 }
 
 impl Server {
@@ -88,6 +92,9 @@ impl Server {
             stdout: BufReader::new(child.stdout.take().unwrap()),
             child,
             color: Color32::WHITE,
+            font_size: 16.0,
+            anchor: Align2::LEFT_TOP,
+            last_instant: Instant::now(),
         }
     }
     fn handle_io<T>(
@@ -138,6 +145,11 @@ impl eframe::App for Server {
                         _ => {}
                     }
                 }
+                // ΔT
+                let now = Instant::now();
+                let dt = now - self.last_instant;
+                self.last_instant = now;
+                input_lines.push(format!("dt {}", dt.as_secs_f32()));
                 // End
                 input_lines.push("end_input".into());
 
@@ -159,7 +171,8 @@ impl eframe::App for Server {
                     |server| {
                         for line in server.stdout.by_ref().lines() {
                             let line = line?;
-                            let (command, args) = line.split_once(' ').unwrap_or((&line, ""));
+                            let (command, args) =
+                                line.split_once(char::is_whitespace).unwrap_or((&line, ""));
                             let split_args: Vec<&str> = args.split_whitespace().collect();
                             match (command, split_args.as_slice()) {
                                 ("clear", _) => {
@@ -198,6 +211,46 @@ impl eframe::App for Server {
                                 ("circle", [x, y, radius]) => {
                                     let [x, y, radius] = parse_floats([x, y, radius], 0.0);
                                     ui.painter().circle_filled(pos2(x, y), radius, server.color);
+                                }
+                                ("font_size", [size]) => {
+                                    server.font_size = size.parse().unwrap_or(16.0);
+                                }
+                                ("text", [x, y, ..]) => {
+                                    let text =
+                                        args.splitn(3, char::is_whitespace).nth(2).unwrap_or("");
+                                    let [x, y] = parse_floats([x, y], 0.0);
+                                    let font_id = FontId {
+                                        size: server.font_size,
+                                        family: FontFamily::Proportional,
+                                    };
+                                    ui.painter().text(
+                                        pos2(x, y),
+                                        server.anchor,
+                                        text,
+                                        font_id,
+                                        server.color,
+                                    );
+                                }
+                                ("anchor", [h, v]) => {
+                                    let h = match *h {
+                                        "left" => Align::LEFT,
+                                        "center" => Align::Center,
+                                        "right" => Align::RIGHT,
+                                        _ => {
+                                            eprintln!("Invalid anchor: {v}");
+                                            server.anchor[0]
+                                        }
+                                    };
+                                    let v = match *v {
+                                        "top" => Align::TOP,
+                                        "center" => Align::Center,
+                                        "bottom" => Align::BOTTOM,
+                                        _ => {
+                                            eprintln!("Invalid anchor: {v}");
+                                            server.anchor[1]
+                                        }
+                                    };
+                                    server.anchor = Align2([h, v]);
                                 }
                                 ("end_frame", _) => break,
                                 _ => {
