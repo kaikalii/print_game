@@ -1,4 +1,4 @@
-#![allow(unused_variables, unused_assignments)]
+use std::collections::BTreeSet;
 
 pub fn main() {
     // Send init commands
@@ -6,10 +6,11 @@ pub fn main() {
     println!("end_init");
 
     // Initialize engine state
-    let mut window_width = 0.0;
+    let mut window_width = 0f32;
     let mut window_height = 0.0;
     let mut mouse_x = 0.0;
     let mut mouse_y = 0.0;
+    let mut keys = BTreeSet::new();
 
     // Main game loop
     loop {
@@ -25,11 +26,12 @@ pub fn main() {
                 ["mouse_moved", x, y] => {
                     mouse_x = x.parse().unwrap();
                     mouse_y = y.parse().unwrap();
-                    eprintln!("mouse pos: {} {}", mouse_x, mouse_y);
                 }
                 ["key", key, pressed, ..] => {
                     if pressed.parse().unwrap() {
-                        eprintln!("key pressed: {}", key);
+                        keys.insert(key.to_string());
+                    } else {
+                        keys.remove(*key);
                     }
                 }
                 ["end_input"] => {
@@ -42,6 +44,21 @@ pub fn main() {
         }
 
         // Write frame
+        println!("color #505050");
+        println!("clear");
+        if keys.contains("Space") {
+            println!("color cyan");
+        } else {
+            println!("color white");
+        }
+        println!(
+            "circle {} {} {}",
+            window_width / 2.0,
+            window_height / 2.0,
+            window_width.min(window_height) / 2.0
+        );
+        println!("color red");
+        println!("rectangle {} {} 100 100", mouse_x - 50.0, mouse_y - 50.0);
         println!("end_frame");
     }
 }

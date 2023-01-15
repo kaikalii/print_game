@@ -23,4 +23,7 @@ cargo r run cargo r -- -p example
 
 # Frame commands
 
+- clear
+- color r:f32 g:f32 b:f32 a:f32
+- color color:string
 - end_frame

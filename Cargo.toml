@@ -6,6 +6,7 @@ version = '0.1.0'
 [dependencies]
 clap.features = ['derive']
 clap.version = '4'
+csscolorparser = "0.6.2"
 eframe = '0.20.1'
 
 [workspace]

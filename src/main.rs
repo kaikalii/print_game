@@ -78,6 +78,7 @@ struct Server {
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
+    color: Color32,
 }
 
 impl Server {
@@ -86,6 +87,7 @@ impl Server {
             stdin: child.stdin.take().unwrap(),
             stdout: BufReader::new(child.stdout.take().unwrap()),
             child,
+            color: Color32::WHITE,
         }
     }
     fn handle_io<T>(
@@ -160,6 +162,43 @@ impl eframe::App for Server {
                             let (command, args) = line.split_once(' ').unwrap_or((&line, ""));
                             let split_args: Vec<&str> = args.split_whitespace().collect();
                             match (command, split_args.as_slice()) {
+                                ("clear", _) => {
+                                    ui.painter().rect_filled(
+                                        Rect::from_min_size(Pos2::ZERO, ui.available_size()),
+                                        Rounding::default(),
+                                        server.color,
+                                    );
+                                }
+                                ("color", [r, g, b, a]) => {
+                                    let [r, g, b, a] = parse_floats([r, g, b, a], 1.0);
+                                    server.color = Rgba::from_rgba_premultiplied(r, g, b, a).into();
+                                }
+                                ("color", [r, g, b]) => {
+                                    let [r, g, b] = parse_floats([r, g, b], 1.0);
+                                    server.color =
+                                        Rgba::from_rgba_premultiplied(r, g, b, 1.0).into();
+                                }
+                                ("color", _) => {
+                                    if let Ok(color) = csscolorparser::parse(args) {
+                                        let (r, g, b, a) = color.to_linear_rgba_u8();
+                                        server.color = Color32::from_rgba_premultiplied(r, g, b, a);
+                                    } else {
+                                        eprintln!("Invalid color: {}", args);
+                                    }
+                                }
+                                ("rectangle", [x, y, width, height]) => {
+                                    let [x, y, width, height] =
+                                        parse_floats([x, y, width, height], 0.0);
+                                    ui.painter().rect_filled(
+                                        Rect::from_min_size(pos2(x, y), vec2(width, height)),
+                                        Rounding::default(),
+                                        server.color,
+                                    );
+                                }
+                                ("circle", [x, y, radius]) => {
+                                    let [x, y, radius] = parse_floats([x, y, radius], 0.0);
+                                    ui.painter().circle_filled(pos2(x, y), radius, server.color);
+                                }
                                 ("end_frame", _) => break,
                                 _ => {
                                     eprintln!("Invalid frame command: {command} {args}");
@@ -176,4 +215,8 @@ impl eframe::App for Server {
         _ = self.child.kill();
         true
     }
+}
+
+fn parse_floats<const N: usize>(args: [&&str; N], default: f32) -> [f32; N] {
+    args.map(|s| s.parse().unwrap_or(default))
 }
