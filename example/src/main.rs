@@ -48,9 +48,7 @@ pub fn main() {
                 ["end_input"] => {
                     break;
                 }
-                command => {
-                    eprintln!("Invalid input command: {:?}", command);
-                }
+                _ => {}
             }
         }
 

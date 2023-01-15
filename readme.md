@@ -62,6 +62,7 @@ Frame commands can be found [below](#frame-commands).
 
 - `window_resized` `width:f32` `height:f32`
 - `key` `key:string` `pressed:bool` `repeat:bool` `ctrl:bool` `shift:bool` `alt:bool`
+- `mouse_button` `button:string` `pressed:bool` `ctrl:bool` `shift:bool` `alt:bool`
 - `mouse_moved` `x:f32` `y:f32`
 - `end_input`
 

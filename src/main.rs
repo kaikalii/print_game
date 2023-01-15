@@ -209,6 +209,17 @@ impl eframe::App for Server {
                                 self.keys_down.remove(key);
                             }
                         }
+                        Event::PointerButton {
+                            button,
+                            pressed,
+                            modifiers,
+                            ..
+                        } => {
+                            input_lines.push(format!(
+                                "mouse_button {button:?} {pressed} {} {} {}",
+                                modifiers.ctrl, modifiers.shift, modifiers.alt
+                            ));
+                        }
                         Event::PointerMoved(pos) => {
                             input_lines.push(format!("mouse_moved {} {}", pos.x, pos.y));
                         }
@@ -255,6 +266,7 @@ impl Server {
         loop {
             line.clear();
             self.stdout.read_line(&mut line)?;
+            line = line.trim().into();
             if let Some(line) = line.strip_prefix('/') {
                 println!("{line}");
                 continue;

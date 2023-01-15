@@ -1,7 +1,4 @@
-import sys, math
-
-def eprint(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
+import math
 
 mouse_x = 0.0
 mouse_y = 0.0
@@ -47,6 +44,11 @@ while True:
                 keys.add(key)
             else:
                 keys.discard(key)
+        elif event == "mouse_button":
+            button = args[0]
+            pressed = args[1] == "true"
+            if pressed and button == "Primary":
+                print("/click")
 
     # Move character
     vel_x = float("D" in keys) - float("A" in keys)
