@@ -11,6 +11,11 @@ For example if you wanted to draw a square in Python, you could do this:
 print("/color red")
 print("/rectangle 40 120 80 80")
 ```
+To draw a sprite:
+```python
+print("/image assets/my_texture.png 100 100 200 200")
+```
+
 Handling input events is similar:
 ```python
 event = ""

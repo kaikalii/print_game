@@ -67,8 +67,8 @@ while True:
     size = input().split(" ")
     size = [float(size[0]), float(size[1])]
     print("/anchor left top")
-    for i in range(int(math.ceil(window_width / size[0]))):
-        for j in range(int(math.ceil(window_height / size[1]))):
+    for i in range(math.ceil(window_width / size[0])):
+        for j in range(math.ceil(window_height / size[1])):
             print("/image {} {} {}".format(grass_sprite, i * size[0], j * size[1]))
 
     # Draw character
