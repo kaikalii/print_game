@@ -14,6 +14,7 @@ pub fn main() {
     let mut mouse_y = 0.0;
     let mut dt = 1.0 / 60.0;
     let mut keys = BTreeSet::new();
+    let mut show_cursor = true;
 
     // Main game loop
     loop {
@@ -30,11 +31,14 @@ pub fn main() {
                     mouse_x = x.parse().unwrap();
                     mouse_y = y.parse().unwrap();
                 }
-                ["key", key, pressed, ..] => {
+                &["key", key, pressed, ..] => {
                     if pressed.parse().unwrap() {
                         keys.insert(key.to_string());
+                        if key == "Escape" {
+                            show_cursor = !show_cursor;
+                        }
                     } else {
-                        keys.remove(*key);
+                        keys.remove(key);
                     }
                 }
                 ["dt", t] => {
@@ -50,10 +54,11 @@ pub fn main() {
         }
 
         // Write frame
+        println!("show_cursor {show_cursor}");
         println!("anchor center");
 
         // Clear screen
-        println!("color #505050");
+        println!("color #404040");
         println!("clear");
 
         // Big circle

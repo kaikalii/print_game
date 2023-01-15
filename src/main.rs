@@ -92,8 +92,10 @@ struct Server {
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
     color: Color32,
+    clear_color: Color32,
     font_size: f32,
     anchor: Align2,
+    show_cursor: bool,
 }
 
 impl Server {
@@ -102,9 +104,11 @@ impl Server {
             stdin: child.stdin.take().unwrap(),
             stdout: BufReader::new(child.stdout.take().unwrap()),
             child,
+            clear_color: Color32::BLACK,
             color: Color32::WHITE,
             font_size: 16.0,
             anchor: Align2::LEFT_TOP,
+            show_cursor: true,
         }
     }
     fn handle_io<T>(
@@ -124,8 +128,16 @@ impl Server {
 }
 
 impl eframe::App for Server {
+    fn clear_color(&self, _visuals: &Visuals) -> Rgba {
+        Rgba::from_rgba_premultiplied(
+            self.clear_color.r() as f32 / 255.0,
+            self.clear_color.g() as f32 / 255.0,
+            self.clear_color.b() as f32 / 255.0,
+            self.clear_color.b() as f32 / 255.0,
+        )
+    }
     fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
-        CentralPanel::default()
+        let resp = CentralPanel::default()
             .frame(Frame::none())
             .show(ctx, |ui| {
                 // Gather input lines
@@ -182,21 +194,16 @@ impl eframe::App for Server {
                                 line.split_once(char::is_whitespace).unwrap_or((&line, ""));
                             let split_args: Vec<&str> = args.split_whitespace().collect();
                             match (command, split_args.as_slice()) {
-                                ("clear", _) => {
-                                    ui.painter().rect_filled(
-                                        Rect::from_min_size(Pos2::ZERO, ui.available_size()),
-                                        Rounding::default(),
-                                        server.color,
-                                    );
-                                }
+                                ("clear", _) => server.clear_color = server.color,
                                 ("color", [r, g, b, a]) => {
-                                    let [r, g, b, a] = parse_floats([r, g, b, a], 1.0);
-                                    server.color = Rgba::from_rgba_premultiplied(r, g, b, a).into();
+                                    let [r, g, b, a] = parse_floats([r, g, b, a], 1.0)
+                                        .map(|c| (c * 255.0).round() as u8);
+                                    server.color = Color32::from_rgba_premultiplied(r, g, b, a);
                                 }
                                 ("color", [r, g, b]) => {
-                                    let [r, g, b] = parse_floats([r, g, b], 1.0);
-                                    server.color =
-                                        Rgba::from_rgba_premultiplied(r, g, b, 1.0).into();
+                                    let [r, g, b] = parse_floats([r, g, b], 1.0)
+                                        .map(|c| (c * 255.0).round() as u8);
+                                    server.color = Color32::from_rgba_premultiplied(r, g, b, 255);
                                 }
                                 ("color", _) => {
                                     if let Ok(color) = csscolorparser::parse(args) {
@@ -290,6 +297,7 @@ impl eframe::App for Server {
                                         texture_id: TextureId::Managed(1),
                                     });
                                 }
+                                ("show_cursor", [show]) => server.show_cursor = *show != "false",
                                 ("end_frame", _) => break,
                                 _ => {
                                     eprintln!("Invalid frame command: {command} {args}");
@@ -299,7 +307,13 @@ impl eframe::App for Server {
                         Ok(())
                     },
                 );
-            });
+            })
+            .response;
+        resp.on_hover_cursor(if self.show_cursor {
+            CursorIcon::Default
+        } else {
+            CursorIcon::None
+        });
         ctx.request_repaint();
     }
     fn on_close_event(&mut self) -> bool {
